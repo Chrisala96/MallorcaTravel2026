@@ -39,6 +39,12 @@ export const PLACES = {
     query: 'Flughafen Stuttgart, 70629 Stuttgart',
     lat: 48.6899, lng: 9.2220, approx: true, approxNote: 'Marker zeigt das Flughafengelände. Navigation nutzt den Flughafen als Ziel.',
   },
+  p14: {
+    id: 'p14', name: 'Parkhaus P14 Flughafen Stuttgart', kind: 'trip',
+    address: 'Flughafenstraße, 70629 Leinfelden-Echterdingen',
+    lat: 48.691513, lng: 9.196271, approx: false,
+    coordNote: 'Koordinaten laut APCOA. Einfahrtshöhe max. 2,10 m. Terminals laut APCOA in ca. 2 Min. zu Fuss erreichbar.',
+  },
   pmi: {
     id: 'pmi', name: 'Flughafen Palma de Mallorca (PMI)', kind: 'trip',
     query: 'Aeropuerto de Palma de Mallorca',
@@ -80,12 +86,13 @@ export const EVENTS = [
   { id: 'ev-breakfast', date: '2026-10-12', timeLabel: 'Morgens', sort: '07:00', status: 'booked', timeOpen: true, icon: 'coffee',
     title: 'Frühstück im Hotel', subtitle: 'inklusive', place: 'hotel', notes: ['Keine Frühstückszeit bestätigt.'] },
   { id: 'ev-drive-str', date: '2026-10-12', time: '10:30', timeLabel: 'ca. 10:30', sort: '10:30', status: 'approx', icon: 'car',
-    title: 'Abfahrt zum Flughafen Stuttgart', subtitle: 'Auto · Nürburgring → STR', route: { from: 'hotel', to: 'str' },
+    title: 'Abfahrt zum Flughafen Stuttgart', subtitle: 'Auto · Nürburgring → Parkhaus P14 (STR)', route: { from: 'hotel', to: 'p14' },
     notes: ['Ungefähre Planungszeit.', 'Fahrzeit bitte in Google Maps prüfen – inkl. Parkieren, Weg zum Terminal, Check-in und Sicherheitskontrolle.'], shareable: true },
   { id: 'ev-checkout', date: '2026-10-12', timeLabel: 'bis 11:00', sort: '10:31', status: 'booked', icon: 'key',
     title: 'Check-out Dorint', subtitle: 'spätestens 11:00 Uhr', place: 'hotel', booking: 'hotel' },
   { id: 'ev-parking', date: '2026-10-12', timeLabel: 'vor Abflug', sort: '16:00', status: 'open', icon: 'square-parking',
-    title: 'Parkieren Flughafen Stuttgart', subtitle: 'Parkplatz noch nicht gebucht', link: '#/parking', booking: 'parking', dynamic: 'parking' },
+    title: 'Parkieren Flughafen Stuttgart', subtitle: 'Parkplatz noch nicht gebucht', place: 'p14', booking: 'parking', dynamic: 'parking',
+    notes: ['Parkhaus P14: Einfahrtshöhe max. 2,10 m (laut APCOA).'] },
   { id: 'ev-flight-out', date: '2026-10-12', time: '17:50', sort: '17:50', status: 'fixed', icon: 'plane-takeoff',
     title: 'Flug DE1524', subtitle: 'Stuttgart (STR) → Palma (PMI) · Ankunft 19:55', place: 'str', booking: 'flights', shareable: true,
     notes: ['Fluggesellschaft, Terminal, Gate, Gepäck und Buchungsreferenz: offen.'] },
@@ -108,7 +115,7 @@ export const EVENTS = [
   { id: 'ev-flight-back', date: '2026-10-17', time: '14:45', sort: '14:45', status: 'fixed', icon: 'plane-takeoff',
     title: 'Flug DE1525', subtitle: 'Palma (PMI) → Stuttgart (STR)', place: 'pmi', booking: 'flights', dynamic: 'returnFlight', shareable: true },
   { id: 'ev-drive-home', date: '2026-10-17', timeLabel: 'Zeit offen', sort: '20:00', status: 'open', icon: 'house',
-    title: 'Rückfahrt in die Schweiz', subtitle: 'Flughafen Stuttgart → Schaffhausen', route: { from: 'str', to: 'home' },
+    title: 'Rückfahrt in die Schweiz', subtitle: 'Flughafen Stuttgart → Schaffhausen', route: { from: 'p14', to: 'home' },
     notes: ['Abfahrts- und Ankunftszeit offen.', 'Ziel ist Schaffhausen – nicht Thayngen.'] },
 ];
 
@@ -137,6 +144,9 @@ export const SIXT_PUBLIC = {
 // Flughafenparkplatz Stuttgart – nur reale Anbieter. Preise/Verfügbarkeit bitte immer beim Anbieter prüfen.
 // Recherchestand: 08.10.2026.
 export const PARKING = {
+  // Gebucht am 08.10.2026 (Buchungsnummer, Betrag und QR-Code liegen verschlüsselt in den privaten Daten).
+  booking: { booked: true, provider: 'Flughafen Stuttgart · COMFORT P14', product: 'COMFORT P14', entry: '2026-10-12T11:00', exit: '2026-10-17T23:00',
+    manageUrl: 'https://parken.flughafen-stuttgart.de/' },
   checkedAt: '08.10.2026',
   options: [
     {
@@ -176,7 +186,7 @@ export const CHECKLIST_DEFAULT = [
   { id: 'c-sixt-pickup', title: 'SIXT-Abholzeit korrigieren', detail: 'Am 08.10. auf 12.10. ab 19:30 geändert.', priority: 'high', link: SIXT_PUBLIC.manageUrl, defaultDone: true },
   { id: 'c-sixt-return', title: 'SIXT-Rückgabezeit korrigieren', detail: 'Am 08.10. auf 17.10. 14:30 geändert.', priority: 'high', link: SIXT_PUBLIC.manageUrl, defaultDone: true },
   { id: 'c-sixt-return-check', title: 'SIXT-Rückgabe 14:30 vs. Abflug 14:45 prüfen', detail: 'Nur 15 Min. zwischen Rückgabe und Abflug – frühere Rückgabe nötig?', priority: 'high', link: SIXT_PUBLIC.manageUrl },
-  { id: 'c-parking', title: 'Parkplatz am Flughafen Stuttgart suchen und buchen', detail: 'Zeitraum 12.–17.10.2026.', priority: 'high', route: '#/parking' },
+  { id: 'c-parking', title: 'Parkplatz am Flughafen Stuttgart suchen und buchen', detail: 'Am 08.10. gebucht: COMFORT P14, 12.10. 11:00 – 17.10. 23:00.', priority: 'high', route: '#/parking', defaultDone: true },
   { id: 'c-return-arrival', title: 'Ankunftszeit des Rückflugs DE1525 prüfen', detail: 'Wichtig für Parkplatz und Rückfahrt.', priority: 'medium', route: '#/booking/flights' },
   { id: 'c-villa', title: 'Fehlende Villadetails ergänzen', detail: 'Adresse, Check-in/-out, Schlüsselübergabe, Kontakt, Preis.', priority: 'medium', route: '#/villa' },
   { id: 'c-flight-info', title: 'Fehlende Flugbuchungsinformationen ergänzen', detail: 'Fluggesellschaft, Terminal, Gepäck, Buchungsreferenz.', priority: 'medium', route: '#/booking/flights' },

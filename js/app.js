@@ -124,7 +124,7 @@ async function start() {
   syncCentral();
   window.addEventListener('online', syncCentral);
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') syncCentral(); });
-  window.addEventListener('hashchange', route);
+  window.addEventListener('hashchange', () => (/^#k=/.test(location.hash) ? handleUnlockLink().then(() => { currentKey = ''; route(); }) : route()));
   window.addEventListener('statechange', (ev) => {
     if (ev.detail?.includes('settings')) { applyTheme(); if (!M.state.settings.simulate) setSimulatedNow(null); currentKey = ''; route(); }
     updateTabDots();

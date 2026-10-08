@@ -524,3 +524,12 @@ fieldset.field { display: grid; gap: 8px; }
 .grid2 > * { min-width: 0; }
 input[type="datetime-local"], input[type="time"] { max-width: 100%; -webkit-appearance: none; appearance: none; }
 .sim-row { display: grid; gap: 10px; }
+.qr-box { display: grid; justify-items: center; gap: 8px; margin: 16px 0 4px; padding: 16px; border-radius: 16px; background: #fff; border: 1px solid var(--line); text-align: center; }
+.qr-box img { width: 220px; height: 220px; image-rendering: pixelated; }
+.qr-box small { color: #5f5a52; max-width: 320px; }
+.stars { display: flex; gap: 4px; align-items: center; }
+.stars button { background: none; border: 0; padding: 4px; color: var(--text-3); min-width: 36px; min-height: 36px; }
+.stars button.on { color: var(--gold); }
+.stars button .ic { width: 24px; height: 24px; }
+.own-rating { font-size: .78rem; color: var(--gold); font-weight: 650; display: inline-flex; align-items: center; gap: 2px; }
+.own-rating .ic { width: .95em; height: .95em; }

@@ -155,6 +155,7 @@ export function openPlaceDetail(p, { base } = {}) {
   const dist = base && base.lat != null && p.lat != null ? haversineKm(base, p) : null;
   const gm = placeMapsUrl(p);
   const nav = p.lat != null ? mapsDirUrl(p) : p.query ? mapsDirUrl({ query: p.query }) : null;
+  const stars = () => { const r = M.favOf(p)?.myRating || 0; return html`<div class="kv"><dt>Unsere Bewertung</dt><dd><div class="stars" role="group" aria-label="Eigene Bewertung">${[1, 2, 3, 4, 5].map((n) => html`<button type="button" class="${n <= r ? 'on' : ''}" data-rate="${n}" aria-label="${n} von 5" aria-pressed="${n <= r}">${icon('star', n <= r ? 'filled' : '')}</button>`)}</div><small class="muted">nur für uns, wird lokal gespeichert</small></dd></div>`; };
   const render = () => html`
     <div class="detail-top">${cat ? html`<span class="badge s-cat">${icon(cat.icon)}${cat.label}</span>` : ''}
       ${p.source === 'osm' ? html`<span class="badge s-src">OpenStreetMap</span>` : html`<span class="badge s-src">Eigener Eintrag</span>`}</div>
@@ -169,6 +170,7 @@ export function openPlaceDetail(p, { base } = {}) {
       ${p.website ? html`<div class="kv"><dt>Website</dt><dd><a href="${p.website}" target="_blank" rel="noopener">${p.website.replace(/^https?:\/\/(www\.)?/, '').slice(0, 40)}</a></dd></div>` : ''}
       ${p.phone ? html`<div class="kv"><dt>Telefon</dt><dd><a href="tel:${p.phone.replace(/[^+\d]/g, '')}">${p.phone}</a></dd></div>` : ''}
       ${p.notes ? html`<div class="kv"><dt>Notiz</dt><dd>${p.notes}</dd></div>` : ''}
+      ${stars()}
     </dl>
     <div class="btn-col">
       ${nav ? html`<a class="btn primary" href="${nav}" target="_blank" rel="noopener">${icon('navigation')} Navigation starten</a>` : ''}
@@ -177,7 +179,7 @@ export function openPlaceDetail(p, { base } = {}) {
         <button class="btn ghost" data-share>${icon('share-2')} Teilen</button>
       </div>
       <div class="btn-row">
-        ${gm ? html`<a class="btn ghost" href="${gm}" target="_blank" rel="noopener">${icon('external-link')} Google Maps</a>` : ''}
+        ${gm ? html`<a class="btn ghost" href="${gm}" target="_blank" rel="noopener">${icon('external-link')} Bewertungen & Fotos</a>` : ''}
         <button class="btn ghost" data-plan>${icon('calendar-plus')} In Reiseplan</button>
       </div>
       ${p.osmUrl ? html`<a class="link-sm" href="${p.osmUrl}" target="_blank" rel="noopener">Daten auf OpenStreetMap ansehen · © OSM-Mitwirkende</a>` : ''}
@@ -189,6 +191,7 @@ export function openPlaceDetail(p, { base } = {}) {
         b.querySelector('[data-fav]').onclick = async () => { const f = await M.toggleFav(p); toast(f ? 'Zu Favoriten hinzugefügt' : 'Aus Favoriten entfernt'); b.innerHTML = String(render()); bind(); };
         b.querySelector('[data-share]').onclick = () => openShareChooser(p);
         b.querySelector('[data-plan]').onclick = () => { close(); setTimeout(() => openItemEditor({ title: p.name, placeData: { ...p }, status: 'idea', date: suggestDay(p) }), 240); };
+        b.querySelectorAll('[data-rate]').forEach((x) => (x.onclick = async () => { const r = await M.setRating(p, +x.dataset.rate); toast(r ? `Unsere Bewertung: ${r} von 5 – als Favorit gespeichert` : 'Bewertung entfernt'); b.innerHTML = String(render()); bind(); }));
       };
       bind();
     },

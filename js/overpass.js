@@ -80,6 +80,7 @@ function toPlace(el, catId) {
     openingHours: t.opening_hours || null, website: t.website || t['contact:website'] || null,
     phone: t.phone || t['contact:phone'] || null, description: t.description || t['description:de'] || null,
     osmUrl: `https://www.openstreetmap.org/${el.type}/${el.id}`,
+    commons: t.wikimedia_commons || null, wikidata: t.wikidata || null, image: t.image || null,
   };
 }
 function guessCat(t) {

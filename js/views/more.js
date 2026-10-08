@@ -14,7 +14,7 @@ function menu() {
     ['Reise', [
       ['#/bookings', 'file-text', 'Buchungen', 'Hotel, Flüge, Mietwagen, Villa, Parkplatz'],
       ['#/villa', 'house', 'Ferienvilla', 'Standort, Objekt, offene Angaben'],
-      ['#/parking', 'square-parking', 'Parkplatz Stuttgart', M.parking().booked ? 'Gebucht (manuell markiert)' : 'Noch nicht gebucht'],
+      ['#/parking', 'square-parking', 'Parkplatz Stuttgart', M.parking().booked ? 'Gebucht · COMFORT P14' : 'Noch nicht gebucht'],
       ['#/checklist', 'list-checks', 'Checkliste', `${open} offen`],
       ['#/docs', 'upload', 'Dokumente', 'PDFs lokal speichern'],
     ]],
@@ -40,7 +40,7 @@ function bookings() {
     ['Flüge', '#/booking/flights', 'plane', 'DE1524 · DE1525', '12.10. / 17.10.2026', 'fixed', 'Buchungsreferenz offen'],
     ['Mietwagen', '#/booking/sixt', 'car', 'SIXT Palma Flughafen', '12.–17.10.2026', sx, s.ret.state === 'tight' ? 'Rückgabe knapp vor Abflug' : sx === 'conflict' ? 'Zeitkonflikt' : 'Ab 12.10. 19:30 · bis 17.10.'],
     ['Ferienwohnung', '#/villa', 'house', 'Ferienvilla (e-domizil)', '12.–17.10.2026', 'booked', 'Details teilweise offen'],
-    ['Flughafenparkplatz', '#/parking', 'square-parking', 'Flughafen Stuttgart', '12.–17.10.2026', M.parking().booked ? 'booked' : 'open', M.parking().booked ? 'manuell markiert' : 'Noch nicht gebucht'],
+    ['Flughafenparkplatz', '#/parking', 'square-parking', 'Flughafen Stuttgart', '12.–17.10.2026', M.parking().booked ? 'booked' : 'open', M.parking().booked ? 'COMFORT P14 · 12.10. 11:00 – 17.10. 23:00' : 'Noch nicht gebucht'],
   ];
   const acts = M.state.plan.filter((p) => p.status === 'confirmed');
   return html`<div class="page">${pageHead('Buchungen', 'Zentrale Übersicht', '#/more')}
@@ -203,15 +203,30 @@ function parkingPage() {
   const ra = M.returnArrival();
   return html`<div class="page booking">${pageHead('Parkplatz', 'Flughafen Stuttgart · 12.–17.10.2026', '#/more')}
     <section class="card booking-hero">
-      <div class="next-top">${p.booked ? badge('booked') : html`<span class="badge s-conflict">${icon('circle-dashed')}Noch nicht gebucht</span>`}</div>
-      ${p.booked ? html`<dl class="kvs">${kv('Anbieter', p.provider || null, { open: !p.provider })}${kv('Buchungsnummer', p.ref || null, { open: !p.ref, mono: true, copy: !!p.ref })}${p.notes ? kv('Notiz', p.notes) : ''}</dl><p class="hint">${p.src === 'shared' ? 'Zentral für alle als gebucht hinterlegt.' : 'Auf diesem Gerät manuell als gebucht markiert.'}</p>` : ''}
-      <h4>Planungsgrundlage</h4>
-      <ul class="notes"><li>Einfahrt: am 12.10. – Abflug DE1524 um 17:50 Uhr. Ankunft am Flughafen hängt von der Fahrzeit ab (Abfahrt Nürburgring ca. 10:30).</li>
-        <li>Ausfahrt: am 17.10. – Ankunftszeit DE1525 ${ra ? html`laut manueller Angabe ${ra.time}` : html`<b>noch offen</b>`}. Bitte mit Reserve buchen.</li>
-        <li>Endgültige Parkierungszeiten bleiben offen, bis diese Daten vorliegen.</li></ul>
-      <button class="btn ghost" data-edit="parking">${icon('pencil')} ${p.booked ? 'Buchung bearbeiten' : 'Als gebucht markieren'}</button>
+      <div class="next-top">${p.booked ? badge('booked') : html`<span class="badge s-conflict">${icon('circle-dashed')}Noch nicht gebucht</span>`}${p.product ? html`<span class="muted">${p.product}</span>` : ''}</div>
+      ${p.booked && p.entry ? html`<div class="grid2 big-times">
+        <div><small>Einfahrt</small><b>${fmtDate(p.entry)}</b><span>ab ${fmtTime(p.entry)} Uhr</span></div>
+        <div><small>Ausfahrt</small><b>${fmtDate(p.exit)}</b><span>bis ${fmtTime(p.exit)} Uhr</span></div></div>` : ''}
+      ${p.booked ? html`<dl class="kvs">
+        ${kv('Anbieter', p.provider || null, { open: !p.provider })}
+        ${M.unlocked() ? html`${kv('Buchungsnummer', p.ref || null, { open: !p.ref, mono: true, copy: !!p.ref })}${p.total ? kv('Betrag', p.total) : ''}` : ''}
+        ${p.notes ? kv('Notiz', p.notes) : ''}
+        ${kv('Parkhaus', html`P14 · Einfahrtshöhe max. 2,10 m <small class="muted">(laut APCOA)</small>`)}
+      </dl>
+      ${!M.unlocked() ? lockNote('Buchungsnummer und QR-Code') : ''}
+      ${p.qr ? html`<div class="qr-box"><img src="${p.qr}" alt="QR-Code für Ein- und Ausfahrt" width="220" height="220"><small>${p.qrNote}</small></div>` : ''}
+      <div class="btn-grid">
+        <a class="btn primary" href="${navUrlFor('p14')}" target="_blank" rel="noopener">${icon('navigation')} Navigation zu P14</a>
+        ${p.manageUrl ? html`<a class="btn ghost" href="${p.manageUrl}" target="_blank" rel="noopener">${icon('external-link')} Parkbuchung verwalten</a>` : ''}
+        <button class="btn ghost" data-edit="parking">${icon('pencil')} Ergänzen</button>
+      </div>
+      <p class="hint">${icon('info')} Einfahrt ab 11:00 passt zur Abfahrt am Nürburgring (ca. 10:30). Ausfahrt bis 17.10. 23:00 – Ankunftszeit DE1525 ${ra ? html`laut Angabe ${ra.time}` : 'noch offen'}, bitte prüfen.</p>`
+      : html`<h4>Planungsgrundlage</h4>
+      <ul class="notes"><li>Einfahrt: am 12.10. – Abflug DE1524 um 17:50 Uhr.</li>
+        <li>Ausfahrt: am 17.10. – Ankunftszeit DE1525 ${ra ? html`laut Angabe ${ra.time}` : html`<b>noch offen</b>`}.</li></ul>
+      <button class="btn ghost" data-edit="parking">${icon('pencil')} Als gebucht markieren</button>`}
     </section>
-    <h2 class="block-title sm">Anbieter (Recherche ${PARKING.checkedAt})</h2>
+    ${p.booked ? html`<details class="more-opt"><summary>Weitere Anbieter (Recherche ${PARKING.checkedAt})</summary>` : html`<h2 class="block-title sm">Anbieter (Recherche ${PARKING.checkedAt})</h2>`}
     ${PARKING.options.map((o) => html`<section class="card provider">
       <h3>${o.name}</h3><p class="muted">${o.operator}</p>
       <ul class="notes">${o.facts.map((f) => html`<li>${f}</li>`)}</ul>
@@ -220,6 +235,7 @@ function parkingPage() {
         ${o.infoUrl ? html`<a class="btn ghost" href="${o.infoUrl}" target="_blank" rel="noopener">Info</a>` : ''}
         <a class="btn ghost icon-only" href="${mapsDirUrl({ query: o.query })}" target="_blank" rel="noopener" aria-label="Navigation">${icon('navigation')}</a></div>
     </section>`)}
+    ${p.booked ? raw('</details>') : ''}
     <p class="hint">${icon('info')} Keine Live-Preise: Für Parkplatzpreise gibt es keine freie Schnittstelle. Bitte Preise und Verfügbarkeit direkt auf den Buchungsseiten vergleichen.</p>
   </div>`;
 }
@@ -330,8 +346,9 @@ function aboutPage() {
 
 /* ======================= Editoren ======================= */
 function editOverrides(section) {
-  const o = M.ov(section);
-  const shared = M.state.priv?.shared?.[section] || {};
+  const base = section === 'parking' ? PARKING.booking || {} : {};
+  const o = { ...base, ...M.ov(section) };
+  const shared = { ...base, ...(M.state.priv?.shared?.[section] || {}) };
   const defs = {
     flights: { title: 'Flugangaben ergänzen', fields: [['airline', 'Fluggesellschaft'], ['ref', 'Buchungsreferenz'], ['terminal', 'Terminal'], ['gate', 'Gate'], ['baggage', 'Gepäckbestimmungen'], ['returnArrival', 'Ankunftszeit Rückflug in STR', 'time']] },
     villa: { title: 'Villa-Angaben ergänzen', fields: [['address', 'Strassenadresse'], ['checkin', 'Check-in'], ['checkout', 'Check-out'], ['keys', 'Schlüsselübergabe'], ['contact', 'Kontaktperson'], ['price', 'Endgültiger Preis'], ['conditions', 'Weitere Bedingungen', 'textarea']] },

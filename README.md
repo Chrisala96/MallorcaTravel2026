@@ -119,7 +119,7 @@ Deshalb funktioniert die App unter `…github.io/<repo>/` genauso wie unter eine
 - `robots: noindex` verhindert die Indexierung durch Suchmaschinen (kein Zugriffsschutz).
 - Browserdaten (Plan, Favoriten, Dokumente) gehen verloren, wenn Website-Daten gelöscht werden → regelmässig unter *Mehr → Sichern* exportieren.
 
-## 7. Teststatus (08.10.2026, Version 1.1.0)
+## 7. Teststatus (08.10.2026, Version 1.2.1)
 
 Tatsächlich ausgeführt (Chromium headless, 390 px und 320 px Breite, unter einer Projekt-Unterpfad-URL):
 
@@ -138,6 +138,8 @@ Tatsächlich ausgeführt (Chromium headless, 390 px und 320 px Breite, unter ein
 - ✔ Keine Überlappung von Bezeichnung und Wert in den Buchungsdetails (360 px)
 - ✔ Neue SIXT-Zeiten (ab 19:30 / 14:30): keine Abholwarnung, Warnung „Rückgabe nur 15 Min. vor Abflug“
 - ✔ Zentrale Ergänzung kommt nach neuer Veröffentlichung automatisch an; lokale Korrektur hat Vorrang; Zurücksetzen
+- ✔ Parkplatz P14: gebucht, Ein-/Ausfahrt, Buchungsnummer/Betrag/QR nur entsperrt; QR in der App lesbar und identisch mit dem Original
+- ✔ Eigene Bewertung (1–5 Sterne) speichert Ort als Favorit; Favoriten-Filter Essen/Aktivitäten/bewertet
 
 **Noch nicht durchgeführt** (in der Entwicklungsumgebung war kein Internetzugriff für den Browser möglich):
 

@@ -4,7 +4,7 @@ import { CATEGORIES, catById, search, isOpenNow } from '../overpass.js';
 import { sheet, toast, emptyState, placeMapsUrl } from '../ui.js';
 import { openPlaceDetail, openShareChooser, openManualPlace } from '../details.js';
 
-const S = { tab: 'food', cat: null, term: '', baseId: null, radius: 5, openOnly: false, io: 'all', rainOk: false, sort: 'dist', results: null, loading: false, error: null, meta: null, gps: null };
+const S = { favCat: 'all', tab: 'food', cat: null, term: '', baseId: null, radius: 5, openOnly: false, io: 'all', rainOk: false, sort: 'dist', results: null, loading: false, error: null, meta: null, gps: null };
 
 const RADII = [1, 2, 5, 10, 20, 30];
 
@@ -32,6 +32,7 @@ function card(p) {
     <button class="pc-main" data-open="${M.placeKey(p)}">
       <span class="pc-ic cat-${c?.group || 'x'}">${icon(c?.icon || 'map-pin')}</span>
       <span class="pc-txt"><b>${p.name}</b>
+        ${M.favOf(p)?.myRating ? html`<span class="own-rating" title="Unsere eigene Bewertung">${Array.from({ length: M.favOf(p).myRating }, () => icon('star', 'filled'))} unsere Bewertung</span>` : ''}
         <small>${c?.label || 'Ort'}${p.cuisine ? ' · ' + p.cuisine : ''}</small>
         <small class="pc-meta">${p._dist != null ? html`${icon('navigation', 'xs')} ${fmtKm(p._dist)} Luftlinie` : ''}
           ${p._open === true ? html`<span class="ok">· laut OSM geöffnet</span>` : p._open === false ? html`<span class="muted">· laut OSM geschlossen</span>` : ''}</small>
@@ -52,7 +53,9 @@ export function render(root, params, query) {
   const draw = () => {
     const b = base();
     const cats = CATEGORIES.filter((c) => c.group === S.tab);
-    const list = S.tab === 'fav' ? applyFilters(M.state.favorites) : S.results ? applyFilters(S.results) : null;
+    const favs = M.state.favorites.filter((f) => S.favCat === 'all' || (S.favCat === 'rated' ? f.myRating > 0 : catById(f.category)?.group === S.favCat));
+    let list = S.tab === 'fav' ? applyFilters(favs) : S.results ? applyFilters(S.results) : null;
+    if (S.tab === 'fav' && S.favCat === 'rated') list = list.sort((a, b) => (b.myRating || 0) - (a.myRating || 0));
     pool = S.tab === 'fav' ? M.state.favorites : S.results || [];
     const cat = catById(S.cat);
     const gQuery = (cat?.g || S.term || (S.tab === 'food' ? 'Restaurant' : 'Sehenswürdigkeiten'));
@@ -74,7 +77,8 @@ export function render(root, params, query) {
         <button type="button" class="icon-btn sm ${activeFilters ? 'on' : ''}" data-act="filters" aria-label="Filter">${icon('sliders-horizontal')}${activeFilters ? html`<i class="badge-dot">${activeFilters}</i>` : ''}</button>
       </form>
       <div class="chips-scroll" role="list">${cats.map((c) => html`<button role="listitem" class="chip big ${S.cat === c.id ? 'on' : ''}" data-cat="${c.id}">${icon(c.icon)}${c.label}</button>`)}</div>
-      ` : html`<div class="btn-row"><button class="btn ghost" data-act="manual">${icon('plus')} Ort manuell hinzufügen</button></div>`}
+      ` : html`<div class="chips-scroll">${[['all', 'Alle'], ['food', 'Essen'], ['activity', 'Aktivitäten'], ['rated', 'Von uns bewertet']].map(([k, l]) => html`<button class="chip big ${S.favCat === k ? 'on' : ''}" data-favcat="${k}">${l}</button>`)}</div>
+      <div class="btn-row"><button class="btn ghost" data-act="manual">${icon('plus')} Ort manuell hinzufügen</button></div>`}
 
       <div class="results" aria-live="polite">
         ${S.loading ? html`<div class="loading">${[1, 2, 3, 4].map(() => html`<div class="skeleton"></div>`)}</div>` : ''}
@@ -87,7 +91,7 @@ export function render(root, params, query) {
       </div>
 
       ${S.tab !== 'fav' ? html`<a class="btn ghost wide" href="${gUrl}" target="_blank" rel="noopener">${icon('external-link')} „${gQuery}“ in Google Maps suchen</a>` : ''}
-      <p class="source">${S.tab === 'fav' ? 'Favoriten sind nur auf diesem Gerät gespeichert.' : html`Daten: <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap-Mitwirkende</a> via Overpass API. Bewertungen, Rezensionen und Preisniveaus sind in OSM nicht enthalten. Entfernungen sind Luftlinie.`}</p>
+      <p class="source">${S.tab === 'fav' ? 'Favoriten und eigene Bewertungen sind nur auf diesem Gerät gespeichert.' : html`Daten: <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap-Mitwirkende</a> via Overpass API. Bewertungen, Rezensionen und Preisniveaus sind in OSM nicht enthalten – „Bewertungen & Fotos“ öffnet Google Maps. Entfernungen sind Luftlinie.`}</p>
     </div>`);
   };
 
@@ -140,6 +144,7 @@ export function render(root, params, query) {
   draw();
   root.onclick = async (ev) => {
     const t = ev.target;
+    const fc = t.closest('[data-favcat]'); if (fc) { S.favCat = fc.dataset.favcat; draw(); return; }
     const tab = t.closest('[data-tab]'); if (tab) { S.tab = tab.dataset.tab; S.cat = null; S.results = null; S.error = null; draw(); return; }
     const bs = t.closest('[data-base]');
     if (bs) {

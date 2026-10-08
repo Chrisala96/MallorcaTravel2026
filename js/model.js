@@ -1,6 +1,6 @@
 // Zentraler Zustand + abgeleitete Informationen (Konflikte, Tagesablauf, Phase).
 import * as store from './store.js';
-import { TRIP, PLACES, DAYS, EVENTS, FLIGHTS, SIXT_PUBLIC, CHECKLIST_DEFAULT } from './data.js';
+import { TRIP, PLACES, DAYS, EVENTS, FLIGHTS, SIXT_PUBLIC, CHECKLIST_DEFAULT, PARKING } from './data.js';
 import { at, now, dayKey, fmtTime, fmtDate, uid } from './util.js';
 
 export const state = {
@@ -90,8 +90,9 @@ export function returnArrival() {
 }
 
 export function parking() {
-  const o = ov('parking');
-  return { booked: !!o.booked, provider: o.provider || '', ref: o.ref || '', notes: o.notes || '', src: ovSrc('parking', 'booked') };
+  const o = { ...(PARKING.booking || {}), ...ov('parking') };
+  return { booked: !!o.booked, provider: o.provider || '', ref: o.ref || '', notes: o.notes || '', src: ovSrc('parking', 'booked') || (PARKING.booking?.booked ? 'shared' : null), manageUrl: o.manageUrl || '',
+    product: o.product || '', entry: localDate(o.entry), exit: localDate(o.exit), total: o.total || '', qr: o.qr || '', qrNote: o.qrNote || '' };
 }
 
 /* ---------- Ablauf ---------- */
@@ -127,7 +128,12 @@ function resolveEvent(ev) {
   }
   if (ev.dynamic === 'parking') {
     const p = parking();
-    if (p.booked) { e.status = 'booked'; e.subtitle = `Gebucht${p.provider ? ' · ' + p.provider : ''}`; e.warn = null; }
+    if (p.booked) {
+      e.status = 'booked'; e.warn = null;
+      e.subtitle = `Gebucht${p.provider ? ' · ' + p.provider : ''}`;
+      if (p.entry) { e.timeLabel = `ab ${fmtTime(p.entry)}`; e.at = p.entry; e.sort = fmtTime(p.entry) > '10:30' ? '16:00' : e.sort; }
+      if (p.exit) e.notes.unshift(`Einfahrt ab ${p.entry ? fmtDate(p.entry) + ' ' + fmtTime(p.entry) : '–'} · Ausfahrt bis ${fmtDate(p.exit)} ${fmtTime(p.exit)} (laut Buchung).`);
+    }
     else { e.status = 'conflict'; e.warn = 'Noch kein Parkplatz gebucht.'; }
   }
   if (ev.route) {
@@ -240,6 +246,15 @@ export async function moveItem(id, dir) {
 /* ---------- Favoriten ---------- */
 export const placeKey = (p) => p.osmId || p.id;
 export const isFav = (p) => state.favorites.some((f) => placeKey(f) === placeKey(p));
+export const favOf = (p) => state.favorites.find((f) => placeKey(f) === placeKey(p)) || null;
+/** Eigene Bewertung (1–5, nur lokal). Bewerten speichert den Ort automatisch als Favorit. */
+export async function setRating(p, n) {
+  let f = favOf(p);
+  if (!f) { f = { ...p, id: p.id || uid(), savedAt: Date.now() }; state.favorites.push(f); }
+  f.myRating = f.myRating === n ? 0 : n;
+  await save('favorites');
+  return f.myRating;
+}
 export async function toggleFav(p) {
   if (isFav(p)) state.favorites = state.favorites.filter((f) => placeKey(f) !== placeKey(p));
   else state.favorites.push({ ...p, id: p.id || uid(), savedAt: Date.now() });
