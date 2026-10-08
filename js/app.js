@@ -2,7 +2,7 @@
 import { html, icon, $, $$, copyText, setSimulatedNow } from './util.js';
 import * as M from './model.js';
 import { toast } from './ui.js';
-import { unlockWithPassphrase } from './privacy.js';
+import { unlockWithPassphrase, refreshPrivate } from './privacy.js';
 import * as home from './views/home.js';
 import * as plan from './views/plan.js';
 import * as discover from './views/discover.js';
@@ -116,6 +116,14 @@ async function start() {
   applyTheme();
   matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', applyTheme);
   await handleUnlockLink();
+  const syncCentral = async () => {
+    const r = await refreshPrivate();
+    if (r === true) toast('Zentrale Reisedaten aktualisiert');
+    if (r === 'password') toast('Reise-Passwort wurde geändert – bitte unter Mehr → Private Daten neu entsperren.', 6000);
+  };
+  syncCentral();
+  window.addEventListener('online', syncCentral);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') syncCentral(); });
   window.addEventListener('hashchange', route);
   window.addEventListener('statechange', (ev) => {
     if (ev.detail?.includes('settings')) { applyTheme(); if (!M.state.settings.simulate) setSimulatedNow(null); currentKey = ''; route(); }

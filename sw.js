@@ -1,6 +1,6 @@
 // Service Worker – Offline-Fähigkeit. Alle Pfade relativ zum Scope, damit die App auch unter
 // https://<user>.github.io/<repo>/ funktioniert. Bei jeder Änderung VERSION erhöhen.
-const VERSION = 'tc2026-v1.0.0';
+const VERSION = 'tc2026-v1.1.0';
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css',
   'js/app.js', 'js/util.js', 'js/icons.js', 'js/store.js', 'js/crypto.js', 'js/data.js', 'js/model.js', 'js/ui.js',

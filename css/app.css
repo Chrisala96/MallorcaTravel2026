@@ -415,10 +415,10 @@ body[data-page="map"] { padding-bottom: 0; }
 .big-times b { font: 550 1.25rem/1.2 var(--display); margin-top: 4px; }
 .big-times span { color: var(--text-2); font-size: .9rem; }
 .kvs { margin: 0; display: grid; }
-.kv { display: grid; grid-template-columns: minmax(110px, 38%) 1fr; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); align-items: start; }
+.kv { display: grid; grid-template-columns: minmax(0, 38%) minmax(0, 1fr); gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); align-items: start; }
 .kv:last-child { border-bottom: 0; }
-.kv dt { color: var(--text-2); font-size: .88rem; }
-.kv dd { margin: 0; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; overflow-wrap: anywhere; }
+.kv dt { color: var(--text-2); font-size: .88rem; min-width: 0; overflow-wrap: break-word; -webkit-hyphens: auto; hyphens: auto; }
+.kv dd { margin: 0; min-width: 0; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; overflow-wrap: anywhere; }
 .tbl { width: 100%; border-collapse: collapse; font-size: .88rem; }
 .tbl th { text-align: left; font-weight: 600; color: var(--text-3); font-size: .76rem; text-transform: uppercase; letter-spacing: .05em; padding: 6px 6px 6px 0; }
 .tbl td { padding: 9px 6px 9px 0; border-top: 1px solid var(--line); vertical-align: top; }

@@ -3,7 +3,8 @@
 import * as store from './store.js';
 import { now, TZ } from './util.js';
 
-const ENDPOINTS = ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter'];
+// overpass-api.de verlangt bei Browser-Anfragen einen HTTP-Referrer (sonst 406 ohne CORS → "Failed to fetch").
+const ENDPOINTS = ['https://overpass-api.de/api/interpreter', 'https://overpass.private.coffee/api/interpreter', 'https://maps.mail.ru/osm/tools/overpass/api/interpreter'];
 
 // io: indoor/outdoor/mixed · rain: bei Regen geeignet · dur: typische Dauer (Kategorie-Eigenschaft, keine Ortsangabe)
 export const CATEGORIES = [
@@ -101,16 +102,16 @@ export async function search(params) {
     try {
       const ctrl = new AbortController();
       const timer = setTimeout(() => ctrl.abort(), 30000);
-      const res = await fetch(ep, { method: 'POST', body: 'data=' + encodeURIComponent(q), headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, signal: ctrl.signal });
+      const res = await fetch(ep, { method: 'POST', body: 'data=' + encodeURIComponent(q), headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, referrerPolicy: 'strict-origin-when-cross-origin', mode: 'cors', signal: ctrl.signal });
       clearTimeout(timer);
-      if (!res.ok) throw new Error(res.status === 429 ? 'Zu viele Anfragen – bitte kurz warten.' : 'HTTP ' + res.status);
+      if (!res.ok) throw new Error(res.status === 429 ? 'Zu viele Anfragen – bitte kurz warten.' : res.status === 504 ? 'Server überlastet' : 'HTTP ' + res.status);
       const json = await res.json();
       const seen = new Set();
       const places = json.elements.map((e) => toPlace(e, params.cat?.id)).filter((p) => p && !seen.has(p.osmId) && seen.add(p.osmId));
       const out = { places, fetchedAt: Date.now() };
       await store.set(key, out);
       return out;
-    } catch (e) { lastErr = e; }
+    } catch (e) { lastErr = e.name === 'AbortError' ? new Error('Zeitüberschreitung') : e; }
   }
   const cached = await store.get(key);
   if (cached) return { ...cached, stale: true, error: lastErr?.message };

@@ -103,7 +103,12 @@ Deshalb funktioniert die App unter `…github.io/<repo>/` genauso wie unter eine
   node tools/encrypt.mjs "passwort"        # schreibt data/private.enc.json
   ```
 - **Nach jeder Änderung** in `sw.js` die Konstante `VERSION` und in `js/version.js` die Version erhöhen. Die App zeigt dann „Neue Version verfügbar“.
-- Lokale Korrekturen ohne Code: In der App unter Mietwagen/Flüge/Villa/Parkplatz „Angaben ergänzen“ – wird als „manuell“ markiert und nur auf dem Gerät gespeichert.
+- **Ergänzungen für alle Geräte** (Gate, Terminal, Villa-Adresse, Parkplatz …): in `private/private-data.json` im Abschnitt `shared` eintragen, neu verschlüsseln, hochladen. Jedes bereits entsperrte Gerät übernimmt die neue Version beim nächsten Öffnen mit Internet automatisch (Anzeige „ergänzt“). Mögliche Felder:
+  - `flights`: `airline`, `ref`, `terminal`, `gate`, `baggage`, `returnArrival` (z. B. `"19:05"`)
+  - `villa`: `address`, `checkin`, `checkout`, `keys`, `contact`, `price`, `conditions`
+  - `parking`: `booked` (true/false), `provider`, `ref`, `notes`
+  - `sixt`: `pickup`, `ret` (z. B. `"2026-10-17T12:30"`), `pickupConfirmed`, `retConfirmed` (true)
+- **Lokale Korrekturen** ohne Code: in der App „Angaben ergänzen“ – gilt nur auf diesem Gerät („manuell“) und hat Vorrang vor zentralen Werten. „Zurücksetzen“ stellt die zentralen Werte wieder her.
 
 ## 6. Datenschutz
 
@@ -114,7 +119,7 @@ Deshalb funktioniert die App unter `…github.io/<repo>/` genauso wie unter eine
 - `robots: noindex` verhindert die Indexierung durch Suchmaschinen (kein Zugriffsschutz).
 - Browserdaten (Plan, Favoriten, Dokumente) gehen verloren, wenn Website-Daten gelöscht werden → regelmässig unter *Mehr → Sichern* exportieren.
 
-## 7. Teststatus (08.10.2026)
+## 7. Teststatus (08.10.2026, Version 1.1.0)
 
 Tatsächlich ausgeführt (Chromium headless, 390 px und 320 px Breite, unter einer Projekt-Unterpfad-URL):
 
@@ -129,10 +134,14 @@ Tatsächlich ausgeführt (Chromium headless, 390 px und 320 px Breite, unter ein
 - ✔ Dashboard-Phasen per Testmodus (vor/während/nach der Reise)
 - ✔ Dark Mode, kein horizontales Scrollen bei 320 px
 - ✔ Export ohne private Daten (Standard)
+- ✔ Ortssuche sendet den von Overpass geforderten Referrer; Ergebnisdarstellung mit simulierter Server-Antwort
+- ✔ Keine Überlappung von Bezeichnung und Wert in den Buchungsdetails (360 px)
+- ✔ Neue SIXT-Zeiten (ab 19:30 / 14:30): keine Abholwarnung, Warnung „Rückgabe nur 15 Min. vor Abflug“
+- ✔ Zentrale Ergänzung kommt nach neuer Veröffentlichung automatisch an; lokale Korrektur hat Vorrang; Zurücksetzen
 
 **Noch nicht durchgeführt** (in der Entwicklungsumgebung war kein Internetzugriff für den Browser möglich):
 
-- ✘ Live-Abruf Open-Meteo (Wetter), Overpass (Entdecken) und OSM-Kartenkacheln – Code und Fehlerzustände getestet, echte Antworten nicht
+- ✘ Live-Abruf Open-Meteo (Wetter), Overpass (Entdecken) und OSM-Kartenkacheln gegen die echten Server
 - ✘ Tests auf echten iPhone-/Android-Geräten (Safari, Installation auf dem Home-Bildschirm, Web Share API)
 - ✘ Tatsächliches Deployment auf GitHub Pages
 - ✘ Öffnen der Google-Maps-, SIXT-, e-domizil- und Parkplatz-Links

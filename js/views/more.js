@@ -3,7 +3,7 @@ import * as M from '../model.js';
 import * as store from '../store.js';
 import { PLACES, FLIGHTS, SIXT_PUBLIC, PARKING, DAYS } from '../data.js';
 import { badge, kv, pageHead, sheet, toast, confirmDialog, emptyState, lockNote, navUrlFor, routeUrl } from '../ui.js';
-import { unlockWithPassphrase, importPrivateFile, lockPrivate } from '../privacy.js';
+import { unlockWithPassphrase, importPrivateFile, lockPrivate, hasAutoRefresh } from '../privacy.js';
 import { dayShareText } from '../details.js';
 import { APP_VERSION } from '../version.js';
 
@@ -38,7 +38,7 @@ function bookings() {
   const rows = [
     ['Hotels', '#/booking/hotel', 'bed-double', 'Dorint · Am Nürburgring', '10.–12.10.2026', 'booked', M.unlocked() ? `Res.-Nr. ${M.state.priv.hotel.reservation}` : 'Res.-Nr. privat'],
     ['Flüge', '#/booking/flights', 'plane', 'DE1524 · DE1525', '12.10. / 17.10.2026', 'fixed', 'Buchungsreferenz offen'],
-    ['Mietwagen', '#/booking/sixt', 'car', 'SIXT Palma Flughafen', '12.–17.10.2026', sx, sx === 'conflict' ? 'Zeitkonflikt' : 'Zeiten manuell korrigiert'],
+    ['Mietwagen', '#/booking/sixt', 'car', 'SIXT Palma Flughafen', '12.–17.10.2026', sx, s.ret.state === 'tight' ? 'Rückgabe knapp vor Abflug' : sx === 'conflict' ? 'Zeitkonflikt' : 'Ab 12.10. 19:30 · bis 17.10.'],
     ['Ferienwohnung', '#/villa', 'house', 'Ferienvilla (e-domizil)', '12.–17.10.2026', 'booked', 'Details teilweise offen'],
     ['Flughafenparkplatz', '#/parking', 'square-parking', 'Flughafen Stuttgart', '12.–17.10.2026', M.parking().booked ? 'booked' : 'open', M.parking().booked ? 'manuell markiert' : 'Noch nicht gebucht'],
   ];
@@ -91,15 +91,18 @@ function hotel() {
   </div>`;
 }
 
+const srcBadge = (section, k) => { const src = M.ovSrc(section, k); return src === 'local' ? html` <span class="badge s-manual" title="Nur auf diesem Gerät">manuell</span>` : src === 'shared' ? html` <span class="badge s-manual" title="Zentral für alle Geräte hinterlegt">ergänzt</span>` : ''; };
+const OV_HINT = 'Zentral hinterlegte Angaben („ergänzt“) gelten auf allen Geräten. Eigene Änderungen („manuell“) gelten nur auf diesem Gerät und haben Vorrang.';
+
 function flights() {
-  const o = M.state.overrides.flights || {};
-  const mf = (k) => (o[k] ? html`${o[k]} <span class="badge s-manual">manuell</span>` : null);
+  const o = M.ov('flights');
+  const mf = (k) => (o[k] ? html`${o[k]}${srcBadge('flights', k)}` : null);
   const statusLink = (no) => `https://www.google.com/search?q=${encodeURIComponent('Flugstatus ' + no)}`;
   const fCard = (f, back) => html`<section class="card flight">
     <div class="next-top">${badge('fixed')}<span class="muted">${fmtDate(new Date(f.date + 'T12:00:00+02:00'))}</span></div>
     <div class="fl-route"><div><b>${f.from.match(/\((\w+)\)/)[1]}</b><span>${f.from.replace(/ \(\w+\)/, '')}</span><strong>${f.dep}</strong></div>
       <div class="fl-mid">${icon('plane')}<small>${f.no}</small></div>
-      <div><b>${f.to.match(/\((\w+)\)/)[1]}</b><span>${f.to.replace(/ \(\w+\)/, '')}</span><strong>${back ? (o.returnArrival ? html`${o.returnArrival}<sup>manuell</sup>` : html`<span class="is-open">offen</span>`) : f.arr}</strong></div></div>
+      <div><b>${f.to.match(/\((\w+)\)/)[1]}</b><span>${f.to.replace(/ \(\w+\)/, '')}</span><strong>${back ? (o.returnArrival ? html`${o.returnArrival}<sup>${M.ovSrc('flights', 'returnArrival') === 'local' ? 'manuell' : 'ergänzt'}</sup>` : html`<span class="is-open">offen</span>`) : f.arr}</strong></div></div>
     <a class="btn ghost sm" href="${statusLink(f.no)}" target="_blank" rel="noopener">${icon('external-link')} Aktuellen Flugstatus online prüfen</a>
   </section>`;
   return html`<div class="page booking">${pageHead('Flüge', 'DE1524 · DE1525', '#/bookings')}
@@ -114,21 +117,24 @@ function flights() {
       ${kv('Ankunft Rückflug STR', mf('returnArrival'), { open: !o.returnArrival })}
     </dl>
     <button class="btn ghost" data-edit="flights">${icon('pencil')} Angaben ergänzen</button>
-    <p class="hint">Ergänzungen werden nur auf diesem Gerät gespeichert und als „manuell“ gekennzeichnet.</p></section>
+    <p class="hint">${OV_HINT}</p></section>
   </div>`;
 }
 
 function sixt() {
   const s = M.sixt(), p = M.state.priv?.sixt;
   const tState = (x) => (x.state === 'ok' ? 'booked' : x.state === 'pending' ? 'approx' : 'conflict');
+  const gap = s.gapMinutes(s.ret.effective);
   return html`<div class="page booking">${pageHead('Mietwagen', 'SIXT · Mallorca Palma Flughafen', '#/bookings')}
-    ${s.pickup.state !== 'ok' ? html`<div class="alert danger big">${icon('triangle-alert')}<div><b>${SIXT_PUBLIC.pickupWarning}</b><span>Gebucht: 12.10.2026, 14:00 · Flugankunft: 12.10.2026, 19:55</span>${s.pickup.state === 'pending' ? html`<small>Neue Zeit ${fmtTime(s.pickup.local)} eingetragen – noch nicht als bei SIXT geändert markiert.</small>` : ''}</div></div>` : ''}
-    ${s.ret.state !== 'ok' ? html`<div class="alert danger big">${icon('triangle-alert')}<div><b>${SIXT_PUBLIC.returnWarning}</b><span>Gebucht: 17.10.2026, 16:00 · Abflug: 17.10.2026, 14:45</span>${s.ret.state === 'pending' ? html`<small>Neue Zeit ${fmtTime(s.ret.local)} eingetragen – noch nicht als bei SIXT geändert markiert.</small>` : ''}</div></div>` : ''}
+    ${s.pickup.state === 'conflict' || s.pickup.state === 'pending' ? html`<div class="alert danger big">${icon('triangle-alert')}<div><b>${SIXT_PUBLIC.pickupWarning}</b><span>Gebucht: ${fmtDate(s.pickup.booked)}, ${fmtTime(s.pickup.booked)} · Flugankunft: 12.10.2026, 19:55</span>${s.pickup.state === 'pending' ? html`<small>Neue Zeit ${fmtTime(s.pickup.local)} eingetragen – noch nicht als bei SIXT geändert markiert.</small>` : ''}</div></div>` : ''}
+    ${s.ret.state === 'conflict' || s.ret.state === 'pending' ? html`<div class="alert danger big">${icon('triangle-alert')}<div><b>${SIXT_PUBLIC.returnWarning}</b><span>Gebucht: ${fmtDate(s.ret.booked)}, ${fmtTime(s.ret.booked)} · Abflug: 17.10.2026, 14:45</span>${s.ret.state === 'pending' ? html`<small>Neue Zeit ${fmtTime(s.ret.local)} eingetragen – noch nicht als bei SIXT geändert markiert.</small>` : ''}</div></div>` : ''}
+    ${s.ret.state === 'tight' ? html`<div class="alert danger big">${icon('triangle-alert')}<div><b>Rückgabe nur ${gap} Min. vor dem Abflug</b><span>Rückgabe ${fmtDate(s.ret.effective)}, ${fmtTime(s.ret.effective)} · Abflug DE1525: 17.10.2026, 14:45</span><small>${SIXT_PUBLIC.returnTightWarning}</small></div></div>` : ''}
     <section class="card booking-hero">
       <div class="grid2 big-times">
-        <div><small>Abholung</small>${badge(tState(s.pickup))}<b>${fmtDate(s.pickup.effective)}</b><span>${fmtTime(s.pickup.effective)} Uhr${s.pickup.state === 'ok' && s.pickup.local ? ' (korrigiert)' : ''}</span></div>
-        <div><small>Rückgabe</small>${badge(tState(s.ret))}<b>${fmtDate(s.ret.effective)}</b><span>${fmtTime(s.ret.effective)} Uhr${s.ret.state === 'ok' && s.ret.local ? ' (korrigiert)' : ''}</span></div>
+        <div><small>Abholung</small>${badge(tState(s.pickup))}<b>${fmtDate(s.pickup.effective)}</b><span>ab ${fmtTime(s.pickup.effective)} Uhr${s.pickup.changed ? ' (lokal korrigiert)' : ''}</span></div>
+        <div><small>Rückgabe</small>${badge(tState(s.ret))}<b>${fmtDate(s.ret.effective)}</b><span>${fmtTime(s.ret.effective)} Uhr${s.ret.changed ? ' (lokal korrigiert)' : ''}</span></div>
       </div>
+      <p class="hint">${icon('info')} Zeiten am 08.10.2026 bei SIXT geändert (ursprünglich 12.10. 14:00 / 17.10. 16:00). Abholung: Landung planmässig 19:55, laut Bestätigung ${SIXT_PUBLIC.graceMinutes} Min. Kulanz.</p>
       <div class="btn-grid">
         <a class="btn primary" href="${SIXT_PUBLIC.manageUrl}" target="_blank" rel="noopener">${icon('external-link')} Buchung bei SIXT ändern</a>
         <button class="btn ghost" data-edit="sixt">${icon('pencil')} Neue Zeiten eintragen</button>
@@ -161,8 +167,8 @@ function sixt() {
 
 function villa() {
   const v = M.state.priv?.villa, pl = M.place('villa');
-  const o = M.state.overrides.villa || {};
-  const fld = (k, l) => kv(l, o[k] ? html`${o[k]} <span class="badge s-manual">manuell</span>` : null, { open: !o[k] });
+  const o = M.ov('villa');
+  const fld = (k, l) => kv(l, o[k] ? html`${o[k]}${srcBadge('villa', k)}` : null, { open: !o[k] });
   return html`<div class="page booking">${pageHead('Ferienvilla', 'Mallorca · 12.–17. Oktober 2026', '#/more')}
     ${pl ? html`<div class="mini-map" id="villa-map" aria-label="Standortkarte der Villa"></div>` : ''}
     <section class="card booking-hero">
@@ -185,6 +191,7 @@ function villa() {
       ${fld('address', 'Strassenadresse')}${fld('checkin', 'Check-in')}${fld('checkout', 'Check-out')}
       ${fld('keys', 'Schlüsselübergabe')}${fld('contact', 'Kontaktperson')}${fld('price', 'Endgültiger Preis')}${fld('conditions', 'Weitere Bedingungen')}
     </dl><button class="btn ghost" data-edit="villa">${icon('pencil')} Angaben ergänzen</button>
+    <p class="hint">${OV_HINT}</p>
     <p class="hint">Hinweis: Parameter aus dem ursprünglichen Suchlink (Preis, Personen, Zeiten) sind keine bestätigten Buchungsdaten.</p></section>
     <section class="card"><h3>${icon('notebook-pen')} Notizen</h3>
       <textarea class="day-notes" data-villa-notes rows="4" placeholder="z. B. WLAN, Mülltrennung, Hinweise des Vermieters (nur auf diesem Gerät)">${M.state.notes.villa || ''}</textarea></section>
@@ -197,7 +204,7 @@ function parkingPage() {
   return html`<div class="page booking">${pageHead('Parkplatz', 'Flughafen Stuttgart · 12.–17.10.2026', '#/more')}
     <section class="card booking-hero">
       <div class="next-top">${p.booked ? badge('booked') : html`<span class="badge s-conflict">${icon('circle-dashed')}Noch nicht gebucht</span>`}</div>
-      ${p.booked ? html`<dl class="kvs">${kv('Anbieter', p.provider || null, { open: !p.provider })}${kv('Buchungsnummer', p.ref || null, { open: !p.ref, mono: true, copy: !!p.ref })}${p.notes ? kv('Notiz', p.notes) : ''}</dl><p class="hint">Manuell als gebucht markiert.</p>` : ''}
+      ${p.booked ? html`<dl class="kvs">${kv('Anbieter', p.provider || null, { open: !p.provider })}${kv('Buchungsnummer', p.ref || null, { open: !p.ref, mono: true, copy: !!p.ref })}${p.notes ? kv('Notiz', p.notes) : ''}</dl><p class="hint">${p.src === 'shared' ? 'Zentral für alle als gebucht hinterlegt.' : 'Auf diesem Gerät manuell als gebucht markiert.'}</p>` : ''}
       <h4>Planungsgrundlage</h4>
       <ul class="notes"><li>Einfahrt: am 12.10. – Abflug DE1524 um 17:50 Uhr. Ankunft am Flughafen hängt von der Fahrzeit ab (Abfahrt Nürburgring ca. 10:30).</li>
         <li>Ausfahrt: am 17.10. – Ankunftszeit DE1525 ${ra ? html`laut manueller Angabe ${ra.time}` : html`<b>noch offen</b>`}. Bitte mit Reserve buchen.</li>
@@ -249,12 +256,13 @@ async function docsPage() {
   </div>`;
 }
 
-function privatePage() {
+async function privatePage() {
   const u = M.unlocked();
+  const auto = u && await hasAutoRefresh();
   return html`<div class="page">${pageHead('Private Daten', u ? 'Auf diesem Gerät entsperrt' : 'Gesperrt', '#/more')}
     <section class="card">
       <p>Reservierungsnummern, Namen, Preise, Zahlungsdetails, der Standort der Villa und die Heimadresse sind <b>nicht</b> öffentlich in der App enthalten. Sie liegen verschlüsselt (AES-256) im Repository und werden erst mit dem Reise-Passwort lokal entschlüsselt.</p>
-      ${u ? html`<div class="alert ok">${icon('lock-open')}<div><b>Entsperrt</b><span>Die Daten sind in diesem Browser gespeichert und offline verfügbar.</span></div></div>
+      ${u ? html`<div class="alert ok">${icon('lock-open')}<div><b>Entsperrt</b><span>Die Daten sind in diesem Browser gespeichert und offline verfügbar.</span><small>${auto ? 'Zentrale Ergänzungen werden beim Öffnen mit Internet automatisch übernommen.' : 'Für automatische Aktualisierung einmal entfernen und mit dem Passwort neu entsperren.'}</small></div></div>
         <button class="btn danger-ghost" data-lock>${icon('lock')} Private Daten von diesem Gerät entfernen</button>`
       : html`<form class="form" data-unlock>
         <label class="field"><span>Reise-Passwort</span><input name="pass" type="password" autocomplete="current-password" autocapitalize="none" spellcheck="false" required placeholder="z. B. wort-wort-wort-wort-wort"></label>
@@ -322,7 +330,8 @@ function aboutPage() {
 
 /* ======================= Editoren ======================= */
 function editOverrides(section) {
-  const o = M.state.overrides[section] || {};
+  const o = M.ov(section);
+  const shared = M.state.priv?.shared?.[section] || {};
   const defs = {
     flights: { title: 'Flugangaben ergänzen', fields: [['airline', 'Fluggesellschaft'], ['ref', 'Buchungsreferenz'], ['terminal', 'Terminal'], ['gate', 'Gate'], ['baggage', 'Gepäckbestimmungen'], ['returnArrival', 'Ankunftszeit Rückflug in STR', 'time']] },
     villa: { title: 'Villa-Angaben ergänzen', fields: [['address', 'Strassenadresse'], ['checkin', 'Check-in'], ['checkout', 'Check-out'], ['keys', 'Schlüsselübergabe'], ['contact', 'Kontaktperson'], ['price', 'Endgültiger Preis'], ['conditions', 'Weitere Bedingungen', 'textarea']] },
@@ -335,8 +344,8 @@ function editOverrides(section) {
       : type === 'textarea' ? html`<label class="field"><span>${l}</span><textarea name="${k}" rows="2" maxlength="1000">${o[k] || ''}</textarea></label>`
       : html`<label class="field"><span>${l}</span><input name="${k}" type="${type}" value="${o[k] || ''}" ${min ? html`min="${min}" max="${min.slice(0, 10)}T23:59"` : ''} autocomplete="off"></label>`)}
     ${section === 'sixt' ? html`<p class="hint">${icon('info')} Die Warnung verschwindet erst, wenn du bestätigst, dass die Zeit bei SIXT tatsächlich geändert wurde – und die neue Zeit zum Flug passt.</p>` : ''}
-    <p class="hint">Wird nur auf diesem Gerät gespeichert und als „manuell“ gekennzeichnet.</p>
-    <div class="btn-row"><button class="btn ghost" type="button" data-clear>Leeren</button><button class="btn primary" type="submit">Speichern</button></div>
+    <p class="hint">Wird nur auf diesem Gerät gespeichert und als „manuell“ gekennzeichnet.${Object.keys(shared).length ? ' „Zurücksetzen“ stellt die zentral hinterlegten Angaben wieder her.' : ''}</p>
+    <div class="btn-row"><button class="btn ghost" type="button" data-clear>${Object.keys(shared).length ? 'Zurücksetzen' : 'Leeren'}</button><button class="btn primary" type="submit">Speichern</button></div>
   </form>`, {
     title: defs.title,
     onMount: (b, close) => {
@@ -346,7 +355,9 @@ function editOverrides(section) {
         const out = {};
         for (const [k, , type] of defs.fields) {
           const el = f.elements[k];
-          if (type === 'checkbox') out[k] = el.checked; else if (el.value.trim()) out[k] = el.value.trim();
+          // Nur speichern, was vom zentralen Wert abweicht – so kommen spätere zentrale Ergänzungen weiterhin an.
+          if (type === 'checkbox') { if (el.checked !== !!shared[k]) out[k] = el.checked; }
+          else if (el.value.trim() && el.value.trim() !== (shared[k] || '')) out[k] = el.value.trim();
         }
         if (section === 'sixt') {
           if (out.pickupConfirmed && !out.pickup) { toast('Bitte zuerst die neue Abholzeit eintragen.'); return; }

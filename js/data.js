@@ -120,12 +120,18 @@ export const FLIGHTS = {
 
 export const SIXT_PUBLIC = {
   provider: 'SIXT',
-  bookedPickup: '2026-10-12T14:00:00+02:00',
-  bookedReturn: '2026-10-17T16:00:00+02:00',
+  // Am 08.10.2026 bei SIXT geändert (ursprünglich 12.10. 14:00 / 17.10. 16:00).
+  bookedPickup: '2026-10-12T19:30:00+02:00',
+  bookedReturn: '2026-10-17T14:30:00+02:00',
+  originalPickup: '2026-10-12T14:00:00+02:00',
+  originalReturn: '2026-10-17T16:00:00+02:00',
+  graceMinutes: 60, // Kulanz für die Abholung laut Bestätigung (innerhalb der Öffnungszeiten)
+  returnWarnMinutes: 120, // Warnschwelle der App für die Zeit zwischen Rückgabe und Abflug (keine Vorgabe von SIXT/Airline)
   station: 'Mallorca Palma Flughafen · Zona rent a car – Llegadas · 07610 Palma de Mallorca',
   manageUrl: 'https://www.sixt.de/account/#/manage-my-booking-info',
   pickupWarning: 'Abholzeit des Mietwagens stimmt nicht mit der Flugankunft überein. Änderung bei SIXT erforderlich.',
   returnWarning: 'Rückgabezeit des Mietwagens liegt nach dem Abflug. Änderung bei SIXT erforderlich.',
+  returnTightWarning: 'Rückgabe sehr knapp vor dem Abflug – Check-in, Gepäckaufgabe und Sicherheitskontrolle brauchen Zeit. Bitte Rückgabezeit prüfen.',
 };
 
 // Flughafenparkplatz Stuttgart – nur reale Anbieter. Preise/Verfügbarkeit bitte immer beim Anbieter prüfen.
@@ -167,8 +173,9 @@ export const PARKING = {
 };
 
 export const CHECKLIST_DEFAULT = [
-  { id: 'c-sixt-pickup', title: 'SIXT-Abholzeit korrigieren', detail: 'Gebucht 12.10. 14:00 – Flugankunft 19:55.', priority: 'high', link: SIXT_PUBLIC.manageUrl },
-  { id: 'c-sixt-return', title: 'SIXT-Rückgabezeit korrigieren', detail: 'Gebucht 17.10. 16:00 – Abflug bereits 14:45.', priority: 'high', link: SIXT_PUBLIC.manageUrl },
+  { id: 'c-sixt-pickup', title: 'SIXT-Abholzeit korrigieren', detail: 'Am 08.10. auf 12.10. ab 19:30 geändert.', priority: 'high', link: SIXT_PUBLIC.manageUrl, defaultDone: true },
+  { id: 'c-sixt-return', title: 'SIXT-Rückgabezeit korrigieren', detail: 'Am 08.10. auf 17.10. 14:30 geändert.', priority: 'high', link: SIXT_PUBLIC.manageUrl, defaultDone: true },
+  { id: 'c-sixt-return-check', title: 'SIXT-Rückgabe 14:30 vs. Abflug 14:45 prüfen', detail: 'Nur 15 Min. zwischen Rückgabe und Abflug – frühere Rückgabe nötig?', priority: 'high', link: SIXT_PUBLIC.manageUrl },
   { id: 'c-parking', title: 'Parkplatz am Flughafen Stuttgart suchen und buchen', detail: 'Zeitraum 12.–17.10.2026.', priority: 'high', route: '#/parking' },
   { id: 'c-return-arrival', title: 'Ankunftszeit des Rückflugs DE1525 prüfen', detail: 'Wichtig für Parkplatz und Rückfahrt.', priority: 'medium', route: '#/booking/flights' },
   { id: 'c-villa', title: 'Fehlende Villadetails ergänzen', detail: 'Adresse, Check-in/-out, Schlüsselübergabe, Kontakt, Preis.', priority: 'medium', route: '#/villa' },

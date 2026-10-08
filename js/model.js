@@ -33,7 +33,7 @@ export function place(id) {
     if (!state.priv?.villa) return null;
     const v = state.priv.villa;
     return { id: 'villa', name: 'Ferienvilla Mallorca', lat: v.lat, lng: v.lng, approx: false, kind: 'trip',
-      address: state.overrides.villa?.address || null, coordNote: 'Navigationsziel: Koordinaten laut Buchung (keine bestätigte Strassenadresse).' };
+      address: ov('villa').address || null, coordNote: 'Navigationsziel: Koordinaten laut Buchung (keine bestätigte Strassenadresse).' };
   }
   if (id === 'home') {
     if (!state.priv?.home) return null;
@@ -50,33 +50,48 @@ export const FLIGHT_BACK_DEP = at(FLIGHTS.back.date, FLIGHTS.back.dep);
 
 const localDate = (v) => (v ? new Date(v.length === 16 ? v + ':00+02:00' : v) : null);
 
+/* ---------- Ergänzungen: zentral (verschlüsselte Datei, für alle Geräte) + lokal (nur dieses Gerät) ----------
+ * Lokale Werte überschreiben zentrale. Leere lokale Felder fallen auf den zentralen Wert zurück. */
+export function ov(section) {
+  return { ...(state.priv?.shared?.[section] || {}), ...(state.overrides[section] || {}) };
+}
+/** 'local' | 'shared' | null – woher ein Wert stammt */
+export function ovSrc(section, key) {
+  const l = state.overrides[section]?.[key], sh = state.priv?.shared?.[section]?.[key];
+  if (l !== undefined && l !== '' && l !== false) return 'local';
+  if (sh !== undefined && sh !== '' && sh !== false) return 'shared';
+  return null;
+}
+
 export function sixt() {
-  const o = state.overrides.sixt || {};
+  const o = ov('sixt');
+  const grace = (SIXT_PUBLIC.graceMinutes || 0) * 60000;
+  const warnGap = (SIXT_PUBLIC.returnWarnMinutes || 0) * 60000;
   const mk = (bookedIso, localV, confirmed, check) => {
     const booked = new Date(bookedIso);
     const local = localDate(localV);
     const effective = local && confirmed ? local : booked;
-    const conflict = check(effective);
-    let state_;
-    if (local && confirmed) state_ = conflict ? 'conflict' : 'ok';
-    else if (local) state_ = 'pending';
-    else state_ = conflict ? 'conflict' : 'ok';
-    return { booked, local, confirmed: !!confirmed, effective, conflict, state: state_ };
+    const res = check(effective); // 'ok' | 'tight' | 'conflict'
+    const state_ = local && !confirmed ? 'pending' : res;
+    return { booked, local, confirmed: !!confirmed, effective, conflict: res === 'conflict', state: state_, changed: !!(local && confirmed) };
   };
   return {
-    pickup: mk(SIXT_PUBLIC.bookedPickup, o.pickup, o.pickupConfirmed, (d) => d < FLIGHT_OUT_ARR),
-    ret: mk(SIXT_PUBLIC.bookedReturn, o.ret, o.retConfirmed, (d) => d >= FLIGHT_BACK_DEP),
+    // Abholung: Konflikt erst, wenn selbst mit Kulanz die Landung danach liegt.
+    pickup: mk(SIXT_PUBLIC.bookedPickup, o.pickup, o.pickupConfirmed, (d) => (d.getTime() + grace < FLIGHT_OUT_ARR.getTime() ? 'conflict' : 'ok')),
+    // Rückgabe: Konflikt ab Abflugzeit, Warnung unter der Warnschwelle.
+    ret: mk(SIXT_PUBLIC.bookedReturn, o.ret, o.retConfirmed, (d) => (d >= FLIGHT_BACK_DEP ? 'conflict' : FLIGHT_BACK_DEP - d < warnGap ? 'tight' : 'ok')),
+    gapMinutes: (d) => Math.round((FLIGHT_BACK_DEP - d) / 60000),
   };
 }
 
 export function returnArrival() {
-  const v = state.overrides.flights?.returnArrival;
-  return v ? { time: v, manual: true } : null;
+  const v = ov('flights').returnArrival;
+  return v ? { time: v, manual: true, src: ovSrc('flights', 'returnArrival') } : null;
 }
 
 export function parking() {
-  const o = state.overrides.parking || {};
-  return { booked: !!o.booked, provider: o.provider || '', ref: o.ref || '', notes: o.notes || '' };
+  const o = ov('parking');
+  return { booked: !!o.booked, provider: o.provider || '', ref: o.ref || '', notes: o.notes || '', src: ovSrc('parking', 'booked') };
 }
 
 /* ---------- Ablauf ---------- */
@@ -86,24 +101,33 @@ function resolveEvent(ev) {
   if (ev.dynamic === 'sixtPickup') {
     const p = sixt().pickup;
     e.status = p.state === 'ok' ? 'booked' : 'conflict';
-    if (p.state === 'ok') { e.at = p.effective; e.time = fmtTime(p.effective); e.timeLabel = null; e.notes.unshift('Neue Abholzeit manuell als bei SIXT geändert markiert.'); }
-    else if (p.state === 'pending') { e.timeLabel = `neu: ${fmtTime(p.local)}?`; e.warn = 'Neue Zeit eingetragen, aber noch nicht als bei SIXT geändert markiert.'; }
-    else { e.timeLabel = 'gebucht 14:00'; e.warn = SIXT_PUBLIC.pickupWarning; }
+    if (p.state === 'pending') { e.timeLabel = `neu: ${fmtTime(p.local)}?`; e.warn = 'Neue Zeit eingetragen, aber noch nicht als bei SIXT geändert markiert.'; }
+    else {
+      e.at = p.effective; e.time = fmtTime(p.effective); e.timeLabel = `ab ${fmtTime(p.effective)}`;
+      if (p.state === 'conflict') e.warn = SIXT_PUBLIC.pickupWarning;
+      else if (p.effective < FLIGHT_OUT_ARR) e.notes.unshift(`Abholung ab ${fmtTime(p.effective)}, Landung planmässig 19:55. Laut Bestätigung gilt eine Kulanz von ${SIXT_PUBLIC.graceMinutes} Min. für die Abholung (innerhalb der Öffnungszeiten) – bei Verspätung SIXT informieren.`);
+      if (p.changed) e.notes.unshift('Abholzeit lokal als bei SIXT geändert markiert.');
+    }
   }
   if (ev.dynamic === 'sixtReturn') {
-    const r = sixt().ret;
-    e.status = r.state === 'ok' ? 'booked' : 'conflict';
-    if (r.state === 'ok') { e.at = r.effective; e.time = fmtTime(r.effective); e.timeLabel = null; e.sort = e.time; e.notes.unshift('Rückgabezeit manuell als bei SIXT geändert markiert. Zeitreserve bis Abflug bitte selbst prüfen.'); }
-    else if (r.state === 'pending') { e.timeLabel = `neu: ${fmtTime(r.local)}?`; e.warn = 'Neue Zeit eingetragen, aber noch nicht als bei SIXT geändert markiert.'; }
-    else { e.timeLabel = 'gebucht 16:00'; e.warn = SIXT_PUBLIC.returnWarning; }
+    const s_ = sixt(), r = s_.ret;
+    e.status = r.state === 'ok' ? 'booked' : r.state === 'tight' ? 'approx' : 'conflict';
+    if (r.state === 'pending') { e.timeLabel = `neu: ${fmtTime(r.local)}?`; e.warn = 'Neue Zeit eingetragen, aber noch nicht als bei SIXT geändert markiert.'; }
+    else {
+      e.at = r.effective; e.time = fmtTime(r.effective); e.timeLabel = null; e.sort = e.time;
+      if (r.state === 'conflict') { e.timeLabel = `gebucht ${fmtTime(r.effective)}`; e.sort = '10:00'; e.warn = SIXT_PUBLIC.returnWarning; e.status = 'conflict'; }
+      else if (r.state === 'tight') { e.status = 'booked'; e.warn = `Nur ${s_.gapMinutes(r.effective)} Min. bis zum Abflug (14:45). ${SIXT_PUBLIC.returnTightWarning}`; }
+      else e.notes.unshift('Zeitreserve bis Abflug bitte selbst prüfen.');
+      if (r.changed) e.notes.unshift('Rückgabezeit lokal als bei SIXT geändert markiert.');
+    }
   }
   if (ev.dynamic === 'returnFlight') {
     const a = returnArrival();
-    e.subtitle = a ? `Palma (PMI) → Stuttgart (STR) · Ankunft ${a.time} (manuell ergänzt)` : 'Palma (PMI) → Stuttgart (STR) · Ankunftszeit offen';
+    e.subtitle = a ? `Palma (PMI) → Stuttgart (STR) · Ankunft ${a.time} (ergänzt)` : 'Palma (PMI) → Stuttgart (STR) · Ankunftszeit offen';
   }
   if (ev.dynamic === 'parking') {
     const p = parking();
-    if (p.booked) { e.status = 'booked'; e.subtitle = `Gebucht (manuell markiert)${p.provider ? ' · ' + p.provider : ''}`; }
+    if (p.booked) { e.status = 'booked'; e.subtitle = `Gebucht${p.provider ? ' · ' + p.provider : ''}`; e.warn = null; }
     else { e.status = 'conflict'; e.warn = 'Noch kein Parkplatz gebucht.'; }
   }
   if (ev.route) {
@@ -159,9 +183,10 @@ export function nextConfirmed(n = now()) {
 export function alerts() {
   const out = [];
   const s = sixt();
-  if (s.pickup.state === 'conflict') out.push({ level: 'danger', id: 'sixt-pickup', title: 'Mietwagen-Abholung', text: SIXT_PUBLIC.pickupWarning, sub: `Gebucht: 12.10. 14:00 · Landung: 12.10. 19:55`, route: '#/booking/sixt' });
+  if (s.pickup.state === 'conflict') out.push({ level: 'danger', id: 'sixt-pickup', title: 'Mietwagen-Abholung', text: SIXT_PUBLIC.pickupWarning, sub: `Gebucht: ${fmtDate(s.pickup.effective)} ${fmtTime(s.pickup.effective)} · Landung: 12.10. 19:55`, route: '#/booking/sixt' });
   if (s.pickup.state === 'pending') out.push({ level: 'warn', id: 'sixt-pickup', title: 'Mietwagen-Abholung', text: `Neue Abholzeit ${fmtDate(s.pickup.local)} ${fmtTime(s.pickup.local)} eingetragen – noch nicht als bei SIXT geändert markiert.`, route: '#/booking/sixt' });
-  if (s.ret.state === 'conflict') out.push({ level: 'danger', id: 'sixt-return', title: 'Mietwagen-Rückgabe', text: SIXT_PUBLIC.returnWarning, sub: `Gebucht: 17.10. 16:00 · Abflug: 17.10. 14:45`, route: '#/booking/sixt' });
+  if (s.ret.state === 'conflict') out.push({ level: 'danger', id: 'sixt-return', title: 'Mietwagen-Rückgabe', text: SIXT_PUBLIC.returnWarning, sub: `Gebucht: ${fmtDate(s.ret.effective)} ${fmtTime(s.ret.effective)} · Abflug: 17.10. 14:45`, route: '#/booking/sixt' });
+  if (s.ret.state === 'tight') out.push({ level: 'danger', id: 'sixt-return', title: 'Mietwagen-Rückgabe sehr knapp', text: `Rückgabe ${fmtTime(s.ret.effective)} – nur ${s.gapMinutes(s.ret.effective)} Min. vor dem Abflug um 14:45.`, sub: 'Check-in, Gepäckaufgabe und Sicherheitskontrolle brauchen Zeit. Bitte prüfen.', route: '#/booking/sixt' });
   if (s.ret.state === 'pending') out.push({ level: 'warn', id: 'sixt-return', title: 'Mietwagen-Rückgabe', text: `Neue Rückgabezeit ${fmtTime(s.ret.local)} eingetragen – noch nicht als bei SIXT geändert markiert.`, route: '#/booking/sixt' });
   if (!parking().booked) out.push({ level: 'warn', id: 'parking', title: 'Parkplatz Stuttgart', text: 'Noch nicht gebucht (12.–17.10.).', route: '#/parking' });
   if (!returnArrival()) out.push({ level: 'info', id: 'ret-arr', title: 'Rückflug DE1525', text: 'Ankunftszeit in Stuttgart noch offen.', route: '#/booking/flights' });
@@ -171,13 +196,13 @@ export function alerts() {
 /* ---------- Checkliste ---------- */
 export function checklist() {
   const all = [...CHECKLIST_DEFAULT, ...state.checklist.custom].map((c) => ({
-    ...c, priority: state.checklist.prio[c.id] || c.priority || 'medium', done: !!state.checklist.done[c.id],
+    ...c, priority: state.checklist.prio[c.id] || c.priority || 'medium', done: c.id in state.checklist.done ? !!state.checklist.done[c.id] : !!c.defaultDone,
   }));
   const rank = { high: 0, medium: 1, low: 2 };
   return all.sort((a, b) => (a.done - b.done) || (rank[a.priority] - rank[b.priority]));
 }
 export async function toggleTask(id, done) {
-  if (done) state.checklist.done[id] = Date.now(); else delete state.checklist.done[id];
+  state.checklist.done[id] = done ? Date.now() : false;
   await save('checklist');
 }
 export async function addTask(title, priority = 'medium') {
